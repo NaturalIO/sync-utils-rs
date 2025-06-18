@@ -82,10 +82,7 @@ where
     S: WorkerPoolImpl<M, W>,
 {
     pub fn new(
-        inner: S,
-        min_workers: usize,
-        max_workers: usize,
-        channel_size: usize,
+        inner: S, min_workers: usize, max_workers: usize, channel_size: usize,
         worker_timeout: Duration,
     ) -> Self {
         assert!(min_workers > 0);
@@ -229,28 +226,19 @@ where
     pub fn submit<'a>(&'a self, mut msg: M) -> SubmitFuture<'a, M> {
         let _self = self.0.as_ref();
         if _self.closing.load(Ordering::Acquire) {
-            return SubmitFuture {
-                send_f: None,
-                res: Some(Err(msg)),
-            };
+            return SubmitFuture { send_f: None, res: Some(Err(msg)) };
         }
         let sender = _self._sender().as_ref().unwrap();
         if _self.auto {
             match sender.try_send(Some(msg)) {
                 Err(mpmc::TrySendError::Disconnected(m)) => {
-                    return SubmitFuture {
-                        send_f: None,
-                        res: Some(Err(m.unwrap())),
-                    };
+                    return SubmitFuture { send_f: None, res: Some(Err(m.unwrap())) };
                 }
                 Err(mpmc::TrySendError::Full(m)) => {
                     msg = m.unwrap();
                 }
                 Ok(_) => {
-                    return SubmitFuture {
-                        send_f: None,
-                        res: Some(Ok(())),
-                    };
+                    return SubmitFuture { send_f: None, res: Some(Ok(())) };
                 }
             }
             let worker_count = _self.get_worker_count();
@@ -259,10 +247,7 @@ where
             }
         }
         let send_f = sender.send(Some(msg));
-        return SubmitFuture {
-            send_f: Some(send_f),
-            res: None,
-        };
+        return SubmitFuture { send_f: Some(send_f), res: None };
     }
 }
 
@@ -472,8 +457,7 @@ where
     }
 
     async fn monitor(
-        self: Arc<Self>,
-        noti: mpsc::RxFuture<Option<()>, mpsc::SharedFutureBoth>,
+        self: Arc<Self>, noti: mpsc::RxFuture<Option<()>, mpsc::SharedFutureBoth>,
         rx: RxWraper<Option<M>>,
     ) {
         let _self = self.as_ref();
@@ -618,13 +602,8 @@ mod tests {
             .worker_threads(2)
             .build()
             .unwrap();
-        let worker_pool = MyWorkerPool::new(
-            MyWorkerPoolImpl(),
-            min_workers,
-            max_workers,
-            1,
-            worker_timeout,
-        );
+        let worker_pool =
+            MyWorkerPool::new(MyWorkerPoolImpl(), min_workers, max_workers, 1, worker_timeout);
         let _worker_pool = worker_pool.clone();
         rt.block_on(async move {
             worker_pool.start();
@@ -678,13 +657,8 @@ mod tests {
             .worker_threads(2)
             .build()
             .unwrap();
-        let worker_pool = MyWorkerPool::new(
-            MyWorkerPoolImpl(),
-            min_workers,
-            max_workers,
-            1,
-            worker_timeout,
-        );
+        let worker_pool =
+            MyWorkerPool::new(MyWorkerPoolImpl(), min_workers, max_workers, 1, worker_timeout);
         let _worker_pool = worker_pool.clone();
         rt.block_on(async move {
             worker_pool.start();

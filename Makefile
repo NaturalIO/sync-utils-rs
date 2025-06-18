@@ -29,7 +29,7 @@ init: git-hooks
 
 .PHONY: fmt
 fmt: init
-	cargo +nightly fmt
+	cargo fmt
 
 .PHONY: test
 test: init

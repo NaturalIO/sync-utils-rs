@@ -61,12 +61,8 @@ where
     S: WorkerPoolImpl<M, W>,
 {
     pub fn new(
-        inner: S,
-        min_workers: usize,
-        max_workers: usize,
-        mut buffer_size: usize,
-        worker_timeout: Duration,
-        rt: &Runtime,
+        inner: S, min_workers: usize, max_workers: usize, mut buffer_size: usize,
+        worker_timeout: Duration, rt: &Runtime,
     ) -> Self {
         if buffer_size > max_workers * 2 {
             buffer_size = max_workers * 2;

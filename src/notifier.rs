@@ -45,11 +45,7 @@ impl NotifyOnce {
 
     #[inline]
     pub async fn wait(&self) {
-        NotifyOnceWaitFuture {
-            inner: self.0.as_ref(),
-            is_new: true,
-        }
-        .await;
+        NotifyOnceWaitFuture { inner: self.0.as_ref(), is_new: true }.await;
     }
 }
 

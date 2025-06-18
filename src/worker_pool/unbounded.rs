@@ -489,11 +489,7 @@ mod tests {
         }
 
         async fn run(&mut self, msg: TestMsg) {
-            let run_time = (SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .ok()
-                .unwrap()
-                .as_millis()
+            let run_time = (SystemTime::now().duration_since(UNIX_EPOCH).ok().unwrap().as_millis()
                 % 10) as u64;
             sleep(Duration::from_millis(run_time)).await;
             msg.1.done();
@@ -516,9 +512,7 @@ mod tests {
             .build()
             .unwrap();
         let worker_pool = TestWorkerPool::new(
-            TestWorkerPoolImpl {
-                id: AtomicUsize::new(0),
-            },
+            TestWorkerPoolImpl { id: AtomicUsize::new(0) },
             min_workers,
             max_workers,
             worker_timeout,
@@ -535,12 +529,9 @@ mod tests {
                 tokio::spawn(async move {
                     log::info!("thread:{} run start", thread);
                     let batch_msg_start = thread * batch_msgs;
-                    let mut submit_steps: u64 = (SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .ok()
-                        .unwrap()
-                        .as_millis()
-                        % 100) as u64;
+                    let mut submit_steps: u64 =
+                        (SystemTime::now().duration_since(UNIX_EPOCH).ok().unwrap().as_millis()
+                            % 100) as u64;
                     let mut current_submit_step = 0;
                     for i in batch_msg_start..(batch_msg_start + batch_msgs) {
                         let msg = TestMsg(i, _wg.clone());
