@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use crossfire::mpmc::*;
+use crossfire::{SendError, mpmc};
 use tokio::{runtime::Runtime, time::timeout};
 
 use super::*;
@@ -28,8 +28,8 @@ where
     S: WorkerPoolImpl<M, W>,
 {
     worker_count: AtomicUsize,
-    sender: TxBlocking<Option<M>, SharedSenderBRecvF>,
-    recv: RxFuture<Option<M>, SharedSenderBRecvF>,
+    sender: mpmc::TxBlocking<Option<M>, mpmc::SharedSenderBRecvF>,
+    recv: mpmc::RxFuture<Option<M>, mpmc::SharedSenderBRecvF>,
     min_workers: usize,
     max_workers: usize,
     worker_timeout: Duration,
@@ -37,7 +37,7 @@ where
     water: AtomicUsize,
     phantom: std::marker::PhantomData<W>, // to avoid complaining unused param
     closing: AtomicBool,
-    notify_sender: TxBlocking<Option<()>, SharedSenderBRecvF>,
+    notify_sender: mpmc::TxBlocking<Option<()>, mpmc::SharedSenderBRecvF>,
     auto: bool,
     buffer_size: usize,
 }
@@ -67,8 +67,8 @@ where
         if buffer_size > max_workers * 2 {
             buffer_size = max_workers * 2;
         }
-        let (sender, recv) = bounded_tx_blocking_rx_future(buffer_size);
-        let (noti_sender, noti_recv) = bounded_tx_blocking_rx_future(1);
+        let (sender, recv) = mpmc::bounded_tx_blocking_rx_future(buffer_size);
+        let (noti_sender, noti_recv) = mpmc::bounded_tx_blocking_rx_future(1);
         assert!(min_workers > 0);
         assert!(max_workers >= min_workers);
 
@@ -284,7 +284,9 @@ where
         return false;
     }
 
-    async fn monitor(self: Arc<Self>, noti_recv: RxFuture<Option<()>, SharedSenderBRecvF>) {
+    async fn monitor(
+        self: Arc<Self>, noti_recv: mpmc::RxFuture<Option<()>, mpmc::SharedSenderBRecvF>,
+    ) {
         for _ in 0..self.min_workers {
             self.clone().spawn();
         }

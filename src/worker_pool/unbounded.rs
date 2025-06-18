@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use crossfire::{mpmc, mpsc};
+use crossfire::{SendError, mpmc, mpsc};
 use tokio::time::{sleep, timeout};
 
 use super::*;
@@ -170,7 +170,7 @@ where
         }
         match _self.sender.send(Some(msg)) {
             Ok(_) => None,
-            Err(mpmc::SendError(_msg)) => {
+            Err(SendError(_msg)) => {
                 return Some(_msg.unwrap());
             }
         }

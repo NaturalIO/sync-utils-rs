@@ -16,7 +16,7 @@ A bunch of utilities in async-await and blocking context.
 tokio = { version = "1", features = ["time", "rt"] }
 log = "0.4"
 atomic-waitgroup = "0"
-crossfire = "1"
+crossfire = "1.1"
 parking_lot = "0.9"
 num_cpus = "1"
 lazy_static="1.4"

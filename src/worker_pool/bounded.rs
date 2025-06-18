@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use crossfire::{mpmc, mpsc};
+use crossfire::{RecvError, SendError, TryRecvError, TrySendError, mpmc, mpsc};
 use tokio::time::{sleep, timeout};
 
 use super::*;
@@ -211,10 +211,10 @@ where
             return Some(msg);
         }
         match _self._sender().as_ref().unwrap().try_send(Some(msg)) {
-            Err(mpmc::TrySendError::Disconnected(m)) => {
+            Err(TrySendError::Disconnected(m)) => {
                 return m;
             }
-            Err(mpmc::TrySendError::Full(m)) => {
+            Err(TrySendError::Full(m)) => {
                 return m;
             }
             Ok(_) => return None,
@@ -231,10 +231,10 @@ where
         let sender = _self._sender().as_ref().unwrap();
         if _self.auto {
             match sender.try_send(Some(msg)) {
-                Err(mpmc::TrySendError::Disconnected(m)) => {
+                Err(TrySendError::Disconnected(m)) => {
                     return SubmitFuture { send_f: None, res: Some(Err(m.unwrap())) };
                 }
-                Err(mpmc::TrySendError::Full(m)) => {
+                Err(TrySendError::Full(m)) => {
                     msg = m.unwrap();
                 }
                 Ok(_) => {
@@ -271,7 +271,7 @@ impl<'a, M: Send + Sized + Unpin + 'static> Future for SubmitFuture<'a, M> {
         if let Poll::Ready(r) = Pin::new(send_f).poll(ctx) {
             match r {
                 Ok(()) => return Poll::Ready(None),
-                Err(mpmc::SendError(e)) => {
+                Err(SendError(e)) => {
                     return Poll::Ready(e);
                 }
             }
@@ -504,7 +504,7 @@ pub enum SendFutureWarper<'a, M: Send + Sized + Unpin + 'static> {
 }
 
 impl<'a, M: Send + Sized + Unpin + 'static> Future for SendFutureWarper<'a, M> {
-    type Output = Result<(), mpmc::SendError<M>>;
+    type Output = Result<(), SendError<M>>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
         let _self = self.get_mut();
@@ -517,7 +517,7 @@ impl<'a, M: Send + Sized + Unpin + 'static> Future for SendFutureWarper<'a, M> {
 
 impl<M: Send + Sized + Unpin + 'static> TxWraper<M> {
     #[inline(always)]
-    fn try_send(&self, m: M) -> Result<(), mpmc::TrySendError<M>> {
+    fn try_send(&self, m: M) -> Result<(), TrySendError<M>> {
         match self {
             Self::Blocking(s) => s.try_send(m),
             Self::Async(s) => s.try_send(m),
@@ -535,7 +535,7 @@ impl<M: Send + Sized + Unpin + 'static> TxWraper<M> {
 
 impl<M: Send + Sized + Unpin + 'static> RxWraper<M> {
     #[inline(always)]
-    async fn recv(&self) -> Result<M, mpmc::RecvError> {
+    async fn recv(&self) -> Result<M, RecvError> {
         match self {
             Self::Blocking(s) => s.recv(),
             Self::Async(s) => s.recv().await,
@@ -543,7 +543,7 @@ impl<M: Send + Sized + Unpin + 'static> RxWraper<M> {
     }
 
     #[inline(always)]
-    fn try_recv(&self) -> Result<M, mpmc::TryRecvError> {
+    fn try_recv(&self) -> Result<M, TryRecvError> {
         match self {
             Self::Blocking(s) => s.try_recv(),
             Self::Async(s) => s.try_recv(),
