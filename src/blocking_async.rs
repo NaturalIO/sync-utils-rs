@@ -7,8 +7,8 @@ use std::{
 
 use tokio::runtime::Runtime;
 
-///
-/// This spawn a future into given tokio runtime and wait for result in blocking context
+/// For the use in blocking context.
+/// spawn a future into given tokio runtime and wait for result.
 ///
 struct BlockingFutureInner<R>
 where

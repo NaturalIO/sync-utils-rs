@@ -60,7 +60,7 @@ impl DelayedTime {
 ///
 /// argument:
 ///
-///     `duration`: unit in /// seconds.
+///     duration: unit in seconds.
 #[inline]
 pub fn check_timelapse(pre_ts: u64, duration: u64) -> bool {
     let now = DelayedTime::get();

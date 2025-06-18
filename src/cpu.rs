@@ -4,7 +4,9 @@ use super::bithacks::round_up_to_power2;
 
 const DEFAULT_CPUS: u32 = 4;
 
-// shards & shift determined by cpu
+/// Determine the right sharding by cpu.
+/// Minimise the cost of hashing function of remainder calculation.
+/// Refer to `bithacks` module.
 pub struct CpuShard(u32, u32);
 
 impl CpuShard {
