@@ -4,12 +4,27 @@ use super::bithacks::round_up_to_power2;
 
 const DEFAULT_CPUS: u32 = 4;
 
-/// Determine the right sharding by cpu.
-/// Minimise the cost of hashing function of remainder calculation.
-/// Refer to `bithacks` module.
+/// Determine the right sharding by cpu,
+/// and minimise the cost of hashing function of remainder calculation.
+///
+/// ## example:
+///
+/// ``` rust
+/// use sync_utils::cpu::CpuShard;
+/// let cpu_shard = CpuShard::new(Some(32));
+/// let mut caches = Vec::with_capacity(cpu_shard.shards() as usize);
+/// for _i in 0..caches.capacity() {
+///     caches = Cache::new();
+///     caches.push(cache);
+/// }
+/// let file_id = 111;
+/// let shard_id = file_id & (caches.len() - 1 );
+/// caches[shard_id].get(file_id);
+/// ```
 pub struct CpuShard(u32, u32);
 
 impl CpuShard {
+    /// `max_shard_limit`: limit the maxinum shard number when cpu_num is too large.
     #[inline]
     pub fn new(max_shard_limit: Option<u32>) -> Self {
         let mut cpus = num_cpus::get() as u32;
@@ -25,11 +40,13 @@ impl CpuShard {
         Self(shard, shift)
     }
 
+    /// return the shard number. ( shards() == 1<<shift() )
     #[inline]
     pub fn shards(&self) -> u32 {
         self.0
     }
 
+    /// return the shift ( shards() == 1<<shift() )
     #[inline]
     pub fn shift(&self) -> u32 {
         self.1

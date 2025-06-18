@@ -58,9 +58,9 @@ impl DelayedTime {
 
 /// When the time (unix epoch) has been too long since `pre_ts`, return true.
 ///
-/// argument:
+/// `pre_ts`: old timestamp.
 ///
-///     duration: unit in seconds.
+/// `duration`: unit in seconds.
 #[inline]
 pub fn check_timelapse(pre_ts: u64, duration: u64) -> bool {
     let now = DelayedTime::get();

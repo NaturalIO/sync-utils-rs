@@ -1,9 +1,12 @@
-/// bithacks functions.
-/// Implmented according to paper "Faster Remainder by Direct Computation Applications to Compilers and Software Libraries"
+//! bithacks functions.
+//!
+//! Implmented according to paper "Faster Remainder by Direct Computation Applications to Compilers and Software Libraries".
 
 /// Given a 32-bit number, find the highest bit number which is set 1.
-/// e.g:
-/// ```
+///
+/// For example:
+///
+/// ``` text
 ///   for 0011(3), returns 1.
 ///   for 0100(4), returns 2.
 /// ```
@@ -30,9 +33,11 @@ pub fn highest_bit_set(n: u32) -> u32 {
     if _n >= 2 { c + 1 } else { c }
 }
 
-/// Given a 32-bit number, return the next highest power of 2, and the corresponding thift.
-/// e.g:
-/// ```
+/// Given a 32-bit number, return the next highest power of 2, and the corresponding shift.
+///
+/// For example:
+///
+/// ``` text
 ///    if n is 7, then function will return (8, 3), which 8 = 1 << 3
 /// ```
 #[inline]

@@ -14,6 +14,7 @@ extern crate log;
 pub mod bithacks;
 
 /// Sharding to minimise the cost
+#[cfg(not(doctest))]
 pub mod cpu;
 
 /// Execute future in blocking context

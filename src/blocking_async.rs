@@ -7,9 +7,6 @@ use std::{
 
 use tokio::runtime::Runtime;
 
-/// For the use in blocking context.
-/// spawn a future into given tokio runtime and wait for result.
-///
 struct BlockingFutureInner<R>
 where
     R: Sync + Send + 'static,
@@ -43,6 +40,25 @@ unsafe impl<R> Send for BlockingFutureInner<R> where R: Sync + Send + Clone + 's
 
 unsafe impl<R> Sync for BlockingFutureInner<R> where R: Sync + Send + Clone + 'static {}
 
+/// For the use in blocking context,
+/// spawn a future into given tokio runtime and wait for result.
+///
+/// ## example:
+///
+/// ``` rust
+/// use tokio::time::*;
+/// use sync_utils::blocking_async::BlockingFuture;
+/// let rt = tokio::runtime::Builder::new_multi_thread()
+///     .enable_all()
+///     .worker_threads(1)
+///     .build()
+///     .unwrap();
+/// let res = BlockingFuture::new().block_on(&rt, async move {
+///     println!("exec future");
+///     sleep(Duration::from_secs(1)).await;
+///     return "hello world".to_string();
+/// });
+/// ```
 pub struct BlockingFuture<R: Sync + Send + 'static>(Arc<BlockingFutureInner<R>>);
 
 impl<R> BlockingFuture<R>
