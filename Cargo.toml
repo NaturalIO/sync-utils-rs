@@ -1,8 +1,9 @@
 [package]
 name = "sync-utils"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["plan <frostyplanet@gmail.com"]
+repository = "https://github.com/NaturalIO/sync-utils-rs"
 license = "MIT"
 categories = ["asynchronous", "concurrency"]
 keywords = ["async", "non-blocking", "concurrency", "worker"]
@@ -10,12 +11,12 @@ description = """
 A bunch of utilities in async-await and blocking context.
 """
 
+
 [dependencies]
 tokio = { version = "1", features = ["time", "rt"] }
 log = "0.4"
 atomic-waitgroup = "0"
 crossfire = "1"
-crossbeam = "0.8"
 parking_lot = "0.9"
 num_cpus = "1"
 lazy_static="1.4"
@@ -24,7 +25,6 @@ core_affinity = "0.5"
 chrono = "0"
 
 [dev-dependencies]
-getrandom = "0.1"
-md5 = "0"
 tokio = { version = "1", features = ["time", "sync", "rt", "rt-multi-thread"] }
 captains-log = "0.3.2"
+crossbeam = "0.8"
