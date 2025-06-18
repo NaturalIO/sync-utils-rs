@@ -1,5 +1,5 @@
 //!
-//! A bunch of utility functions in async-await or blocking context.
+//! A bunch of utilities in async-await and blocking context.
 //!
 
 extern crate atomic_waitgroup;

@@ -3,10 +3,12 @@ name = "sync-utils"
 version = "0.1.0"
 edition = "2024"
 authors = ["plan <frostyplanet@gmail.com"]
+license = "MIT"
 categories = ["asynchronous", "concurrency"]
-keywords = ["async", "non-blocking", "concurrency"]
-
-
+keywords = ["async", "non-blocking", "concurrency", "worker"]
+description = """
+A bunch of utilities in async-await and blocking context.
+"""
 
 [dependencies]
 tokio = { version = "1", features = ["time", "rt"] }
