@@ -20,7 +20,8 @@ struct NotifyOnceInner {
 ///
 /// One coroutine issue some loading job, multiple coroutines wait for it to complete.
 ///
-/// ## exmaple:
+/// ## example:
+///
 /// ``` rust
 ///
 /// async fn foo() {
@@ -124,12 +125,12 @@ mod tests {
             let noti = NotifyOnce::new();
             let done = Arc::new(AtomicBool::new(false));
             let wait_count = Arc::new(AtomicUsize::new(0));
-            let mut ths = Vec::new();
+            let mut th_s = Vec::new();
             for _ in 0..10 {
                 let _noti = noti.clone();
                 let _done = done.clone();
                 let _wait_count = wait_count.clone();
-                ths.push(tokio::spawn(async move {
+                th_s.push(tokio::spawn(async move {
                     assert_eq!(_done.load(Ordering::Acquire), false);
                     _noti.wait().await;
                     _wait_count.fetch_add(1, Ordering::SeqCst);
@@ -140,7 +141,7 @@ mod tests {
             assert_eq!(wait_count.load(Ordering::Acquire), 0);
             done.store(true, Ordering::Release);
             noti.done();
-            for th in ths {
+            for th in th_s {
                 let _ = th.await.expect("");
             }
             assert_eq!(wait_count.load(Ordering::Acquire), 10);

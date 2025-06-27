@@ -1,6 +1,6 @@
 //! bithacks functions.
 //!
-//! Implmented according to paper "Faster Remainder by Direct Computation Applications to Compilers and Software Libraries".
+//! Implemented according to paper "Faster Remainder by Direct Computation Applications to Compilers and Software Libraries".
 
 /// Given a 32-bit number, find the highest bit number which is set 1.
 ///

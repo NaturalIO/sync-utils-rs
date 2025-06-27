@@ -24,7 +24,7 @@ const DEFAULT_CPUS: u32 = 4;
 pub struct CpuShard(u32, u32);
 
 impl CpuShard {
-    /// `max_shard_limit`: limit the maxinum shard number when cpu_num is too large.
+    /// `max_shard_limit`: limit the maximum shard number when cpu_num is too large.
     #[inline]
     pub fn new(max_shard_limit: Option<u32>) -> Self {
         let mut cpus = num_cpus::get() as u32;

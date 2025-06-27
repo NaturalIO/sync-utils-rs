@@ -370,10 +370,10 @@ mod tests {
             &rt,
         );
 
-        let mut ths = Vec::new();
+        let mut th_s = Vec::new();
         for i in 0..8 {
             let _pool = worker_pool.clone();
-            ths.push(thread::spawn(move || {
+            th_s.push(thread::spawn(move || {
                 let (done_tx, done_rx) = bounded(10);
                 for j in 0..10 {
                     _pool.submit(MyMsg(i * 10 + j, done_tx.clone()));
@@ -383,7 +383,7 @@ mod tests {
                 }
             }));
         }
-        for th in ths {
+        for th in th_s {
             let _ = th.join();
         }
         let workers = worker_pool.get_worker_count();
