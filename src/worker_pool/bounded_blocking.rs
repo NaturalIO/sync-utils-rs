@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use crossfire::{SendError, mpmc};
+use crossfire::*;
 use tokio::{runtime::Runtime, time::timeout};
 
 use super::*;
@@ -28,8 +28,8 @@ where
     S: WorkerPoolImpl<M, W>,
 {
     worker_count: AtomicUsize,
-    sender: mpmc::TxBlocking<Option<M>, mpmc::SharedSenderBRecvF>,
-    recv: mpmc::RxFuture<Option<M>, mpmc::SharedSenderBRecvF>,
+    sender: MTx<Option<M>>,
+    recv: MAsyncRx<Option<M>>,
     min_workers: usize,
     max_workers: usize,
     worker_timeout: Duration,
@@ -37,7 +37,7 @@ where
     water: AtomicUsize,
     phantom: std::marker::PhantomData<W>, // to avoid complaining unused param
     closing: AtomicBool,
-    notify_sender: mpmc::TxBlocking<Option<()>, mpmc::SharedSenderBRecvF>,
+    notify_sender: MTx<Option<()>>,
     auto: bool,
     buffer_size: usize,
 }
@@ -67,8 +67,8 @@ where
         if buffer_size > max_workers * 2 {
             buffer_size = max_workers * 2;
         }
-        let (sender, recv) = mpmc::bounded_tx_blocking_rx_future(buffer_size);
-        let (noti_sender, noti_recv) = mpmc::bounded_tx_blocking_rx_future(1);
+        let (sender, recv) = mpmc::bounded_tx_blocking_rx_async(buffer_size);
+        let (noti_sender, noti_recv) = mpmc::bounded_tx_blocking_rx_async(1);
         assert!(min_workers > 0);
         assert!(max_workers >= min_workers);
 
@@ -284,9 +284,7 @@ where
         return false;
     }
 
-    async fn monitor(
-        self: Arc<Self>, noti_recv: mpmc::RxFuture<Option<()>, mpmc::SharedSenderBRecvF>,
-    ) {
+    async fn monitor(self: Arc<Self>, noti_recv: MAsyncRx<Option<()>>) {
         for _ in 0..self.min_workers {
             self.clone().spawn();
         }
@@ -426,10 +424,10 @@ mod tests {
             &rt,
         );
 
-        let mut ths = Vec::new();
+        let mut th_s = Vec::new();
         for i in 0..8 {
             let _pool = worker_pool.clone();
-            ths.push(thread::spawn(move || {
+            th_s.push(thread::spawn(move || {
                 let (done_tx, done_rx) = bounded(10);
                 for j in 0..10 {
                     _pool.submit(MyMsg(i * 10 + j, done_tx.clone()));
@@ -439,7 +437,7 @@ mod tests {
                 }
             }));
         }
-        for th in ths {
+        for th in th_s {
             let _ = th.join();
         }
         let workers = worker_pool.get_worker_count();

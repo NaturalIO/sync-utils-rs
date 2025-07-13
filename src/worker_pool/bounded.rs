@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use crossfire::{RecvError, SendError, TryRecvError, TrySendError, mpmc, mpsc};
+use crossfire::*;
 use tokio::time::{sleep, timeout};
 
 use super::*;
@@ -31,15 +31,15 @@ where
     S: WorkerPoolImpl<M, W>,
 {
     worker_count: AtomicUsize,
-    sender: UnsafeCell<Option<TxWraper<Option<M>>>>,
+    sender: UnsafeCell<Option<MAsyncTx<Option<M>>>>,
     min_workers: usize,
     max_workers: usize,
     worker_timeout: Duration,
     inner: S,
     phantom: std::marker::PhantomData<W>, // to avoid complaining unused param
     closing: AtomicBool,
-    notify_sender: mpsc::TxFuture<Option<()>, mpsc::SharedFutureBoth>,
-    notify_recv: UnsafeCell<Option<mpsc::RxFuture<Option<()>, mpsc::SharedFutureBoth>>>,
+    notify_sender: MAsyncTx<Option<()>>,
+    notify_recv: UnsafeCell<Option<AsyncRx<Option<()>>>>,
     auto: bool,
     channel_size: usize,
     real_thread: AtomicBool,
@@ -92,10 +92,7 @@ where
         if auto {
             assert!(worker_timeout != ZERO_DUARTION);
         }
-        //        if channel_size <= min_workers {
-        //            channel_size = min_workers + 1;
-        //        }
-        let (noti_sender, noti_recv) = mpsc::bounded_future_both(1);
+        let (noti_sender, noti_recv) = mpsc::bounded_async(1);
         let pool = Arc::new(WorkerPoolBoundedInner {
             sender: UnsafeCell::new(None),
             inner,
@@ -116,30 +113,22 @@ where
         Self(pool)
     }
 
-    // If worker contains blocking logic, run worker in seperate threads
+    // If worker contains blocking logic, run worker in separate threads
     pub fn set_use_thread(&mut self, ok: bool) {
         self.0.real_thread.store(ok, Ordering::Release);
     }
 
     pub fn start(&self) {
         let _self = self.0.as_ref();
-        let rx;
-        if !_self.auto && _self.real_thread.load(Ordering::Acquire) {
-            let (sender, recv) = mpmc::bounded_tx_future_rx_blocking(_self.channel_size);
-            _self._sender().replace(TxWraper::Blocking(sender));
-            rx = RxWraper::Blocking(recv);
-        } else {
-            let (sender, recv) = mpmc::bounded_future_both(_self.channel_size);
-            _self._sender().replace(TxWraper::Async(sender));
-            rx = RxWraper::Async(recv);
-        }
+        let (sender, rx) = mpmc::bounded_async(_self.channel_size);
+        _self._sender().replace(sender);
 
         for _ in 0.._self.min_workers {
             self.0.clone().spawn(true, rx.clone());
         }
         if _self.auto {
             let _pool = self.0.clone();
-            let notify_recv: &mut Option<mpsc::RxFuture<Option<()>, mpsc::SharedFutureBoth>> =
+            let notify_recv: &mut Option<AsyncRx<Option<()>>> =
                 unsafe { transmute(_self.notify_recv.get()) };
             let noti_rx = notify_recv.take().unwrap();
             tokio::spawn(async move {
@@ -252,7 +241,7 @@ where
 }
 
 pub struct SubmitFuture<'a, M: Send + Sized + Unpin + 'static> {
-    send_f: Option<SendFutureWarper<'a, Option<M>>>,
+    send_f: Option<SendFuture<'a, Option<M>>>,
     res: Option<Result<(), M>>,
 }
 
@@ -305,11 +294,11 @@ where
     S: WorkerPoolImpl<M, W>,
 {
     #[inline(always)]
-    fn _sender(&self) -> &mut Option<TxWraper<Option<M>>> {
+    fn _sender(&self) -> &mut Option<MAsyncTx<Option<M>>> {
         unsafe { transmute(self.sender.get()) }
     }
 
-    async fn run_worker_simple(&self, mut worker: W, rx: RxWraper<Option<M>>) {
+    async fn run_worker_simple(&self, mut worker: W, rx: MAsyncRx<Option<M>>) {
         if let Err(_) = worker.init().await {
             let _ = self.try_exit();
             worker.on_exit();
@@ -334,7 +323,7 @@ where
         worker.on_exit();
     }
 
-    async fn run_worker_adjust(&self, mut worker: W, rx: RxWraper<Option<M>>) {
+    async fn run_worker_adjust(&self, mut worker: W, rx: MAsyncRx<Option<M>>) {
         if let Err(_) = worker.init().await {
             let _ = self.try_exit();
             worker.on_exit();
@@ -345,25 +334,21 @@ where
         let mut is_idle = false;
         'WORKER_LOOP: loop {
             if is_idle {
-                match timeout(worker_timeout, rx.recv()).await {
-                    Ok(res) => {
-                        match res {
-                            Ok(item) => {
-                                if item.is_none() {
-                                    let _ = self.try_exit();
-                                    break 'WORKER_LOOP;
-                                }
-                                worker.run(item.unwrap()).await;
-                                is_idle = false;
-                            }
-                            Err(_) => {
-                                // channel closed worker exit
-                                let _ = self.try_exit();
-                                worker.on_exit();
-                            }
+                match rx.recv_timeout(worker_timeout).await {
+                    Ok(item) => {
+                        if item.is_none() {
+                            let _ = self.try_exit();
+                            break 'WORKER_LOOP;
                         }
+                        worker.run(item.unwrap()).await;
+                        is_idle = false;
                     }
-                    Err(_) => {
+                    Err(RecvTimeoutError::Disconnected) => {
+                        // channel closed worker exit
+                        let _ = self.try_exit();
+                        worker.on_exit();
+                    }
+                    Err(RecvTimeoutError::Timeout) => {
                         // timeout
                         if self.try_exit() {
                             break 'WORKER_LOOP;
@@ -400,7 +385,7 @@ where
     }
 
     #[inline(always)]
-    fn spawn(self: Arc<Self>, initial: bool, rx: RxWraper<Option<M>>) {
+    fn spawn(self: Arc<Self>, initial: bool, rx: MAsyncRx<Option<M>>) {
         self.worker_count.fetch_add(1, Ordering::SeqCst);
         let worker = self.inner.spawn();
         let _self = self.clone();
@@ -456,10 +441,7 @@ where
         return false;
     }
 
-    async fn monitor(
-        self: Arc<Self>, noti: mpsc::RxFuture<Option<()>, mpsc::SharedFutureBoth>,
-        rx: RxWraper<Option<M>>,
-    ) {
+    async fn monitor(self: Arc<Self>, noti: AsyncRx<Option<()>>, rx: MAsyncRx<Option<M>>) {
         let _self = self.as_ref();
         loop {
             match timeout(Duration::from_secs(1), noti.recv()).await {
@@ -488,82 +470,10 @@ where
     }
 }
 
-enum TxWraper<M: Send + Sized + Unpin + 'static> {
-    Blocking(mpmc::TxFuture<M, mpmc::SharedSenderFRecvB>),
-    Async(mpmc::TxFuture<M, mpmc::SharedFutureBoth>),
-}
-
-enum RxWraper<M: Send + Sized + Unpin + 'static> {
-    Blocking(mpmc::RxBlocking<M, mpmc::SharedSenderFRecvB>),
-    Async(mpmc::RxFuture<M, mpmc::SharedFutureBoth>),
-}
-
-pub enum SendFutureWarper<'a, M: Send + Sized + Unpin + 'static> {
-    Blocking(mpmc::SendFuture<'a, M, mpmc::SharedSenderFRecvB>),
-    Async(mpmc::SendFuture<'a, M, mpmc::SharedFutureBoth>),
-}
-
-impl<'a, M: Send + Sized + Unpin + 'static> Future for SendFutureWarper<'a, M> {
-    type Output = Result<(), SendError<M>>;
-
-    fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
-        let _self = self.get_mut();
-        match _self {
-            Self::Blocking(s) => Pin::new(s).poll(ctx),
-            Self::Async(s) => Pin::new(s).poll(ctx),
-        }
-    }
-}
-
-impl<M: Send + Sized + Unpin + 'static> TxWraper<M> {
-    #[inline(always)]
-    fn try_send(&self, m: M) -> Result<(), TrySendError<M>> {
-        match self {
-            Self::Blocking(s) => s.try_send(m),
-            Self::Async(s) => s.try_send(m),
-        }
-    }
-
-    #[inline(always)]
-    fn send<'a>(&'a self, m: M) -> SendFutureWarper<'a, M> {
-        match self {
-            Self::Blocking(s) => SendFutureWarper::Blocking(s.make_send_future(m)),
-            Self::Async(s) => SendFutureWarper::Async(s.make_send_future(m)),
-        }
-    }
-}
-
-impl<M: Send + Sized + Unpin + 'static> RxWraper<M> {
-    #[inline(always)]
-    async fn recv(&self) -> Result<M, RecvError> {
-        match self {
-            Self::Blocking(s) => s.recv(),
-            Self::Async(s) => s.recv().await,
-        }
-    }
-
-    #[inline(always)]
-    fn try_recv(&self) -> Result<M, TryRecvError> {
-        match self {
-            Self::Blocking(s) => s.try_recv(),
-            Self::Async(s) => s.try_recv(),
-        }
-    }
-}
-
-impl<M: Send + Sized + Unpin + 'static> Clone for RxWraper<M> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Blocking(s) => Self::Blocking(s.clone()),
-            Self::Async(s) => Self::Async(s.clone()),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
-    use crossfire::mpsc;
+    use crossfire::*;
     use tokio::time::{Duration, sleep};
 
     use super::*;
@@ -573,7 +483,7 @@ mod tests {
 
     struct MyWorker();
 
-    struct MyMsg(i64, mpsc::TxFuture<(), mpsc::SharedFutureBoth>);
+    struct MyMsg(i64, MAsyncTx<()>);
 
     impl WorkerPoolImpl<MyMsg, MyWorker> for MyWorkerPoolImpl {
         fn spawn(&self) -> MyWorker {
@@ -611,7 +521,7 @@ mod tests {
             for i in 0..5 {
                 let _pool = worker_pool.clone();
                 ths.push(tokio::task::spawn(async move {
-                    let (done_tx, done_rx) = mpsc::bounded_future_both(10);
+                    let (done_tx, done_rx) = mpsc::bounded_async(10);
                     for j in 0..2 {
                         let m = i * 10 + j;
                         println!("submit {} in {}/{}", m, j, i);
@@ -635,7 +545,7 @@ mod tests {
             println!("cur workers: {}, extra should exit due to timeout", workers);
             assert_eq!(workers, min_workers);
 
-            let (done_tx, done_rx) = mpsc::bounded_future_both(1);
+            let (done_tx, done_rx) = mpsc::bounded_async(1);
             for j in 0..10 {
                 worker_pool.submit(MyMsg(80 + j, done_tx.clone())).await;
                 let _ = done_rx.recv().await;
@@ -666,7 +576,7 @@ mod tests {
             for i in 0..5 {
                 let _pool = worker_pool.clone();
                 ths.push(tokio::task::spawn(async move {
-                    let (done_tx, done_rx) = mpsc::bounded_future_both(10);
+                    let (done_tx, done_rx) = mpsc::bounded_async(10);
                     for j in 0..2 {
                         let m = i * 10 + j;
                         println!("submit {} in {}/{}", m, j, i);
@@ -690,7 +600,7 @@ mod tests {
             println!("cur workers: {}, extra should exit due to timeout", workers);
             assert_eq!(workers, min_workers);
 
-            let (done_tx, done_rx) = mpsc::bounded_future_both(1);
+            let (done_tx, done_rx) = mpsc::bounded_async(1);
             for j in 0..10 {
                 worker_pool.submit(MyMsg(80 + j, done_tx.clone())).await;
                 let _ = done_rx.recv().await;
@@ -749,7 +659,7 @@ mod tests {
             for i in 0..5 {
                 let _pool = worker_pool.clone();
                 ths.push(tokio::task::spawn(async move {
-                    let (done_tx, done_rx) = mpsc::bounded_future_both(10);
+                    let (done_tx, done_rx) = mpsc::bounded_async(10);
                     for j in 0..2 {
                         let m = i * 10 + j;
                         println!("submit {} in {}/{}", m, j, i);
@@ -773,7 +683,7 @@ mod tests {
             println!("cur workers: {}, extra should exit due to timeout", workers);
             assert_eq!(workers, min_workers);
 
-            let (done_tx, done_rx) = mpsc::bounded_future_both(1);
+            let (done_tx, done_rx) = mpsc::bounded_async(1);
             for j in 0..10 {
                 worker_pool.submit(MyMsg(80 + j, done_tx.clone())).await;
                 let _ = done_rx.recv().await;

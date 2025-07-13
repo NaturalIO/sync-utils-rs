@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use crossfire::{SendError, mpmc, mpsc};
+use crossfire::*;
 use tokio::time::{sleep, timeout};
 
 use super::*;
@@ -26,16 +26,16 @@ where
     S: WorkerPoolImpl<M, W>,
 {
     worker_count: AtomicUsize,
-    sender: mpmc::TxUnbounded<Option<M>>,
-    recv: mpmc::RxUnbounded<Option<M>>,
+    sender: MTx<Option<M>>,
+    recv: MAsyncRx<Option<M>>,
     min_workers: usize,
     max_workers: usize,
     worker_timeout: Duration,
     inner: S,
     phantom: std::marker::PhantomData<W>, // to avoid complaining unused param
     closing: AtomicBool,
-    notify_sender: mpsc::TxBlocking<Option<()>, mpsc::SharedSenderBRecvF>,
-    notify_recv: mpsc::RxFuture<Option<()>, mpsc::SharedSenderBRecvF>,
+    notify_sender: MTx<Option<()>>,
+    notify_recv: MAsyncRx<Option<()>>, // Only use in monitor()
     water: AtomicUsize,
     auto: bool,
     real_thread: AtomicBool,
@@ -67,8 +67,8 @@ where
         if auto {
             assert!(worker_timeout != ZERO_DUARTION);
         }
-        let (sender, recv) = mpmc::unbounded_future();
-        let (noti_sender, noti_recv) = mpsc::bounded_tx_blocking_rx_future(1);
+        let (sender, recv) = mpmc::unbounded_async();
+        let (noti_sender, noti_recv) = mpmc::bounded_tx_blocking_rx_async(1);
         let pool = Arc::new(WorkerPoolUnboundedInner {
             sender,
             recv,
@@ -369,7 +369,7 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crossfire::mpsc;
+    use crossfire::*;
     use tokio::time::{Duration, sleep};
 
     use super::*;
@@ -380,7 +380,7 @@ mod tests {
 
     struct MyWorker();
 
-    struct MyMsg(i64, mpsc::TxFuture<(), mpsc::SharedFutureBoth>);
+    struct MyMsg(i64, MAsyncTx<()>);
 
     impl WorkerPoolImpl<MyMsg, MyWorker> for MyWorkerPoolImpl {
         fn spawn(&self) -> MyWorker {
@@ -423,7 +423,7 @@ mod tests {
             for i in 0..5 {
                 let _pool = worker_pool.clone();
                 ths.push(tokio::task::spawn(async move {
-                    let (done_tx, done_rx) = mpsc::bounded_future_both(10);
+                    let (done_tx, done_rx) = mpsc::bounded_async(10);
                     for j in 0..2 {
                         _pool.submit(MyMsg(i * 10 + j, done_tx.clone()));
                     }
@@ -450,7 +450,7 @@ mod tests {
             println!("cur workers: {}, extra should exit due to timeout", workers);
             assert_eq!(workers, min_workers);
 
-            let (done_tx, done_rx) = mpsc::bounded_future_both(1);
+            let (done_tx, done_rx) = mpsc::bounded_async(1);
             for j in 0..10 {
                 worker_pool.submit(MyMsg(80 + j, done_tx.clone()));
                 let _ = done_rx.recv().await;
