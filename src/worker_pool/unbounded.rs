@@ -92,7 +92,7 @@ where
         &self.0.inner
     }
 
-    // If worker contains blocking logic, run worker in seperate threads
+    // If worker contains blocking logic, run worker in separate threads
     pub fn set_use_thread(&mut self, ok: bool) {
         self.0.real_thread.store(ok, Ordering::Release);
     }
@@ -419,10 +419,10 @@ mod tests {
             MyWorkerPool::new(MyWorkerPoolImpl(), min_workers, max_workers, worker_timeout);
         rt.block_on(async move {
             worker_pool.start().await;
-            let mut ths = Vec::new();
+            let mut th_s = Vec::new();
             for i in 0..5 {
                 let _pool = worker_pool.clone();
-                ths.push(tokio::task::spawn(async move {
+                th_s.push(tokio::task::spawn(async move {
                     let (done_tx, done_rx) = mpsc::bounded_async(10);
                     for j in 0..2 {
                         _pool.submit(MyMsg(i * 10 + j, done_tx.clone()));
@@ -433,7 +433,7 @@ mod tests {
                     }
                 }));
             }
-            for th in ths {
+            for th in th_s {
                 let _ = th.await;
             }
             let workers = worker_pool.get_worker_count();

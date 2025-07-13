@@ -517,10 +517,10 @@ mod tests {
         let _worker_pool = worker_pool.clone();
         rt.block_on(async move {
             worker_pool.start();
-            let mut ths = Vec::new();
+            let mut th_s = Vec::new();
             for i in 0..5 {
                 let _pool = worker_pool.clone();
-                ths.push(tokio::task::spawn(async move {
+                th_s.push(tokio::task::spawn(async move {
                     let (done_tx, done_rx) = mpsc::bounded_async(10);
                     for j in 0..2 {
                         let m = i * 10 + j;
@@ -533,7 +533,7 @@ mod tests {
                     }
                 }));
             }
-            for th in ths {
+            for th in th_s {
                 let _ = th.await;
             }
             let workers = worker_pool.get_worker_count();
@@ -572,10 +572,10 @@ mod tests {
         let _worker_pool = worker_pool.clone();
         rt.block_on(async move {
             worker_pool.start();
-            let mut ths = Vec::new();
+            let mut th_s = Vec::new();
             for i in 0..5 {
                 let _pool = worker_pool.clone();
-                ths.push(tokio::task::spawn(async move {
+                th_s.push(tokio::task::spawn(async move {
                     let (done_tx, done_rx) = mpsc::bounded_async(10);
                     for j in 0..2 {
                         let m = i * 10 + j;
@@ -588,7 +588,7 @@ mod tests {
                     }
                 }));
             }
-            for th in ths {
+            for th in th_s {
                 let _ = th.await;
             }
             let workers = worker_pool.get_worker_count();
@@ -655,10 +655,10 @@ mod tests {
         let _worker_pool = worker_pool.clone();
         rt.block_on(async move {
             worker_pool.start();
-            let mut ths = Vec::new();
+            let mut th_s = Vec::new();
             for i in 0..5 {
                 let _pool = worker_pool.clone();
-                ths.push(tokio::task::spawn(async move {
+                th_s.push(tokio::task::spawn(async move {
                     let (done_tx, done_rx) = mpsc::bounded_async(10);
                     for j in 0..2 {
                         let m = i * 10 + j;
@@ -671,7 +671,7 @@ mod tests {
                     }
                 }));
             }
-            for th in ths {
+            for th in th_s {
                 let _ = th.await;
             }
             let workers = worker_pool.get_worker_count();
