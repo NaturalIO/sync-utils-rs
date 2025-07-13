@@ -49,4 +49,10 @@ build: init
 build_offline:
 	cargo build --offline
 
-.DEFAULT_GOAL = build_offline
+.DEFAULT_GOAL = build
+
+# Target name % means that it is a rule that matches anything, @: is a recipe;
+# the : means do nothing
+%:
+	@:
+
